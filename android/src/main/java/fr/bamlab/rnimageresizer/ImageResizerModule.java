@@ -43,17 +43,17 @@ public class ImageResizerModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void createResizedImage(
-        final String imagePath,
-        final int newWidth,
-        final int newHeight,
-        final String compressFormat,
-        final int quality,
-        final int rotation,
-        final String outputPath,
-        final boolean keepMeta,
-        final ReadableMap options,
-        final Callback successCb,
-        final Callback failureCb
+            final String imagePath,
+            final int newWidth,
+            final int newHeight,
+            final String compressFormat,
+            final int quality,
+            final int rotation,
+            final String outputPath,
+            final boolean keepMeta,
+            final ReadableMap options,
+            final Callback successCb,
+            final Callback failureCb
     ) {
         // Run in guarded async task to prevent blocking the React bridge
         new GuardedAsyncTask<Void, Void>(getReactApplicationContext()) {
@@ -70,57 +70,61 @@ public class ImageResizerModule extends ReactContextBaseJavaModule {
     }
 
     private void createResizedImageWithExceptions(String imagePath, int newWidth, int newHeight,
-                                           String compressFormatString, int quality, int rotation, String outputPath,
-                                           final boolean keepMeta,
-                                           final ReadableMap options,
-                                           final Callback successCb, final Callback failureCb) throws IOException {
+                                                  String compressFormatString, int quality, int rotation, String outputPath,
+                                                  final boolean keepMeta,
+                                                  final ReadableMap options,
+                                                  final Callback successCb, final Callback failureCb) throws IOException {
 
         Bitmap.CompressFormat compressFormat = Bitmap.CompressFormat.valueOf(compressFormatString);
         Uri imageUri = Uri.parse(imagePath);
 
-        Bitmap scaledImage = ImageResizer.createResizedImage(this.context, imageUri, newWidth, newHeight, quality, rotation,
-                                                             options.getString("mode"), options.getBoolean("onlyScaleDown"));
+        try {
+            Bitmap scaledImage = ImageResizer.createResizedImage(this.context, imageUri, newWidth, newHeight, quality, rotation,
+                    options.getString("mode"), options.getBoolean("onlyScaleDown"));
 
-        if (scaledImage == null) {
-          throw new IOException("The image failed to be resized; invalid Bitmap result.");
-        }
-
-        // Save the resulting image
-        File path = context.getCacheDir();
-        if (outputPath != null) {
-            path = new File(outputPath);
-        }
-
-        File resizedImage = ImageResizer.saveImage(scaledImage, path, UUID.randomUUID().toString(), compressFormat, quality);
-
-        // If resizedImagePath is empty and this wasn't caught earlier, throw.
-        if (resizedImage.isFile()) {
-            WritableMap response = Arguments.createMap();
-            response.putString("path", resizedImage.getAbsolutePath());
-            response.putString("uri", Uri.fromFile(resizedImage).toString());
-            response.putString("name", resizedImage.getName());
-            response.putDouble("size", resizedImage.length());
-            response.putDouble("width", scaledImage.getWidth());
-            response.putDouble("height", scaledImage.getHeight());
-
-            // Copy file's metadata/exif info if required
-            if(keepMeta){
-                try{
-                    ImageResizer.copyExif(this.context, imageUri, resizedImage.getAbsolutePath());
-                }
-                catch(Exception ignored){
-                    Log.e("ImageResizer::createResizedImageWithExceptions", "EXIF copy failed", ignored);
-                };
+            if (scaledImage == null) {
+                throw new IOException("The image failed to be resized; invalid Bitmap result.");
             }
 
-            // Invoke success
-            successCb.invoke(response);
-        } else {
-            failureCb.invoke("Error getting resized image path");
+            // Save the resulting image
+            File path = context.getCacheDir();
+            if (outputPath != null) {
+                path = new File(outputPath);
+            }
+
+            File resizedImage = ImageResizer.saveImage(scaledImage, path, UUID.randomUUID().toString(), compressFormat, quality);
+
+            // If resizedImagePath is empty and this wasn't caught earlier, throw.
+            if (resizedImage.isFile()) {
+                WritableMap response = Arguments.createMap();
+                response.putString("path", resizedImage.getAbsolutePath());
+                response.putString("uri", Uri.fromFile(resizedImage).toString());
+                response.putString("name", resizedImage.getName());
+                response.putDouble("size", resizedImage.length());
+                response.putDouble("width", scaledImage.getWidth());
+                response.putDouble("height", scaledImage.getHeight());
+
+                // Copy file's metadata/exif info if required
+                if (keepMeta) {
+                    try {
+                        ImageResizer.copyExif(this.context, imageUri, resizedImage.getAbsolutePath());
+                    } catch (Exception ignored) {
+                        Log.e("ImageResizer::createResizedImageWithExceptions", "EXIF copy failed", ignored);
+                    }
+                    ;
+                }
+
+                // Invoke success
+                successCb.invoke(response);
+            } else {
+                failureCb.invoke("Error getting resized image path");
+            }
+
+
+            // Clean up bitmap
+            scaledImage.recycle();
+        } catch (OutOfMemoryError e) {
+            throw new IOException("The image failed to be resized; OutOfMemoryError.");
         }
-
-
-        // Clean up bitmap
-        scaledImage.recycle();
     }
 }
