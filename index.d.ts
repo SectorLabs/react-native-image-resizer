@@ -1,4 +1,4 @@
-declare module 'react-native-image-resizer' {
+declare module '@sector-labs/react-native-image-resizer' {
   export interface Response {
     path: string;
     uri: string;
